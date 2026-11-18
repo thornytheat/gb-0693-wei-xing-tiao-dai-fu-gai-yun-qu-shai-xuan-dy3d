@@ -15,6 +15,7 @@
 | M5 缺口定位 | 运行缺口定位并复核证据 | `POST /api/m5`；`/work/5` | `app/modules/m5_gaps/rules.py` | `tests/test_m5.py` |
 | M6 采购候选 | 运行采购候选并复核证据 | `POST /api/m6`；`/work/6` | `app/modules/m6_purchase/rules.py` | `tests/test_m6.py` |
 | M7 交付核验 | 运行交付核验并复核证据 | `POST /api/m7`；`/work/7` | `app/modules/m7_delivery/rules.py` | `tests/test_m7.py` |
+| M8 采购对账 | 按当前目录出候选，对照合同原号与付款 | `POST /api/m8`；`/work/8` | `app/modules/m8_reconciliation/rules.py`、`app/reconcile.py`、`app/ledger.py` | `tests/test_m8.py` |
 
 ## 陷阱登记
 
@@ -28,10 +29,15 @@
 | TRAP-22 | 别名等价类 | 静默覆盖或误计 | 显式裁决并保留证据 | `app/modules/m2_coordinates/rules.py` | `tests/test_m2.py::test_alias_equivalence` |
 | TRAP-23 | 跨日界线 | 静默覆盖或误计 | 显式裁决并保留证据 | `app/modules/m2_coordinates/rules.py` | `tests/test_m2.py::test_dateline_split` |
 | TRAP-25 | 版本有效性 | 静默覆盖或误计 | 显式裁决并保留证据 | `app/modules/m2_coordinates/rules.py` | `tests/test_m2.py::test_newest_version_rules` |
+| TRAP-30 | 目录修订并号 | 按任一旧号采购，重复买单 | 计划按当前规范号合并，合同保留原号 | `app/reconcile.py` | `tests/test_m8.py::test_revision_merges_old_numbers_into_one_plan_row` |
+| TRAP-31 | 改写已签合同号 | 历史合同失去原件对应 | 合同只追加，场景号锁定，仅对账解析当前号 | `app/ledger.py` | `tests/test_m8.py::test_contract_cannot_be_rewritten` |
+| TRAP-32 | 重试重复签约 | 同一批次多份合同 | 批次号为幂等键，重试只回放 | `app/ledger.py` | `tests/test_m8.py::test_retry_same_batch_adds_no_contracts` |
+| TRAP-33 | 目录切换失败 | 页面落到半套数据 | 切换单事务，失败保留上一版 | `app/catalog.py` | `tests/test_m8.py::test_catalogue_switch_failure_keeps_previous_revision_active` |
+| TRAP-34 | 双重旧号均签约 | 同一影像两次付款 | 对账标出重复签约与重复金额，不删改 | `app/reconcile.py` | `tests/test_m8.py::test_signed_contract_keeps_original_number_and_blocks_duplicate_purchase` |
 
 ## 对账规则
 
-输入记录 = 采信记录 + 隔离记录 + 相同行重复。重复表头与空行单独记数。业务合计按阶段中的守恒或差值列复核。运行清单有原文SHA256、规则版本与耗时；相同规则版本下同文重复提交复用批次。
+输入记录 = 采信记录 + 隔离记录 + 相同行重复。采购对账 = 当前目录计划（新增采购/已签约）+ 合同台账 + 付款台账；合同与付款按原号留档，对账按当期身份映射给出当前编号、对照状态与重复签约金额。重复表头与空行单独记数。业务合计按阶段中的守恒或差值列复核。运行清单有原文SHA256、规则版本与耗时；相同规则版本下同文重复提交复用批次。
 
 ## 已知不覆盖
 

@@ -18,6 +18,10 @@ def apply(ctx):
         except DomainError as e:isolate(ctx,r,e.code,e.message)
         except ValueError:isolate(ctx,r,'VERSION','版本必须为正整数')
     names=aliases(candidates)
+    declared={}
+    for r in candidates:
+        declared[r['scene']]=names[r['scene']]
+        if r['alias']: declared[r['alias']]=names[r['scene']]
     for r in candidates:
         canonical=names[r['scene']]
         groups.setdefault(canonical,[]).append({**r,'canonical':canonical})
@@ -32,6 +36,8 @@ def apply(ctx):
             if r is winner:continue
             if r['version_n']==version:duplicates+=1
             else:isolate(ctx,r,'SUPERSEDED','存在更新影像版本')
-    ctx.update(scenes=valid,duplicates=duplicates)
+    accepted={r['canonical'] for r in valid}
+    identity={name:canonical for name,canonical in declared.items() if canonical in accepted}
+    ctx.update(scenes=valid,duplicates=duplicates,identity=identity)
     return {'rows':[{k:v for k,v in r.items() if k not in ('spans','cloud')} for r in valid],'metrics':[['有效场景',len(valid),'幅'],['别名',sum(k!=v for k,v in names.items()),'个'],['重复',duplicates,'条']]}
 

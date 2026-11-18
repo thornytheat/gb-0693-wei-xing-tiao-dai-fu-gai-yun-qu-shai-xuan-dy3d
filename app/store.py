@@ -1,11 +1,9 @@
-import sqlite3, json, os
-from pathlib import Path
+import json
+
+from app.db import connection
 from app.errors import DomainError
-def connection():
-    path=Path(os.environ.get('APP_DB','data/runs.sqlite3'));path.parent.mkdir(parents=True,exist_ok=True)
-    db=sqlite3.connect(path);db.row_factory=sqlite3.Row
-    db.execute('CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, payload TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, decision TEXT NOT NULL DEFAULT "待复核")')
-    return db
+
+
 def save(result):
     with connection() as db:
         ident=result['manifest']['run_id'];row=db.execute('SELECT payload,revision,decision FROM runs WHERE id=?',(ident,)).fetchone()

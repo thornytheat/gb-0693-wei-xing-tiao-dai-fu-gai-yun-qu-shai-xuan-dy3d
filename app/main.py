@@ -4,6 +4,8 @@ from app.errors import DomainError
 from app.reader import decode
 from app.pipeline import calculate
 from app.store import save, latest, history, review, get_run
+from app import catalog
+from app.ledger import present
 from app.web import bp as web
 
 from app.modules.m1_receiving.handler import bp as bp1
@@ -13,6 +15,7 @@ from app.modules.m4_union.handler import bp as bp4
 from app.modules.m5_gaps.handler import bp as bp5
 from app.modules.m6_purchase.handler import bp as bp6
 from app.modules.m7_delivery.handler import bp as bp7
+from app.modules.m8_reconciliation.handler import bp as bp8
 app=Flask(__name__)
 app.config['MAX_CONTENT_LENGTH']=5*1024*1024
 app.json.ensure_ascii=False
@@ -32,6 +35,7 @@ app.register_blueprint(bp4)
 app.register_blueprint(bp5)
 app.register_blueprint(bp6)
 app.register_blueprint(bp7)
+app.register_blueprint(bp8)
 @app.before_request
 def validate_request_object():
     if request.method!='POST': return None
@@ -55,9 +59,33 @@ def run():
         raw=request.files['file'].read();text=decode(raw)
     else:
         payload=request.get_json(silent=True) or {};text=payload.get('csv')
-    return jsonify(save(calculate(text)))
+    result=calculate(text)
+    saved=save(result)
+    warning=None
+    try:
+        # A successful submission is a catalogue revision and becomes current.
+        # If activation fails we keep the previous revision and say so; the
+        # batch itself is still stored and viewable.
+        catalog.activate(result)
+    except Exception:
+        warning='目录切换失败，页面继续显示上一版目录'
+    if warning:
+        saved=dict(saved,warning=warning)
+    return jsonify(saved)
 @app.route('/api/runs/<ident>')
-def run_detail(ident): return jsonify(get_run(ident))
+def run_detail(ident): return jsonify(present(get_run(ident)))
+@app.route('/api/catalogues')
+def catalogues(): return jsonify(catalog.history())
+@app.route('/api/catalogues/active')
+def active_catalogue():
+    item=catalog.active()
+    return jsonify(item if item is not None else {})
+@app.route('/api/catalogues/switch',methods=['POST'])
+def switch_catalogue():
+    body=request.get_json(silent=True) or {}
+    ident=body.get('id') or body.get('run_id')
+    if not ident: raise DomainError('CATALOGUE','缺少目录修订号',400)
+    return jsonify(catalog.switch(str(ident)))
 @app.route('/api/history')
 def runs(): return jsonify(history())
 @app.route('/api/review',methods=['POST'])
@@ -68,7 +96,7 @@ def decide():
     return jsonify(review(body.get('id'),version,body.get('decision')))
 @app.route('/api/evidence.csv')
 def evidence():
-    result=get_run(request.args['run_id']) if request.args.get('run_id') else (latest() or save(calculate()));out=io.StringIO(newline='')
+    result=present(get_run(request.args['run_id']) if request.args.get('run_id') else (latest() or save(calculate())));out=io.StringIO(newline='')
     rows=[]
     for index,stage in result['stages'].items():
         rows.extend({'阶段':index,**r} for r in stage['rows'])

@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block stage_visual %}
+{% for r in current.rows if r['种类'] == '采购计划' %}<div class="terminal-line"><span>{{r['当前目录编号']}}</span>{{r['状态']}} · {{r['价格_CNY']}} CNY{% if r['合同原编号'] != '—' %} ← {{r['合同原编号']}}{% endif %}</div>{% endfor %}
+{% if current.catalogue and current.catalogue.seq %}<div class="terminal-line"><span>目录</span>r{{current.catalogue.seq}} / {{current.catalogue.id[:8]}}</div>{% endif %}
+{% endblock %}
